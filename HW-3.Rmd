@@ -1,6 +1,6 @@
 ---
 title: "MATH 216 Homework 3"
-author: "WRITE YOUR NAME HERE"
+author: "Andrea Narciso"
 output:
   html_document:
     toc: true
@@ -15,6 +15,8 @@ library(dplyr)
 library(readr)
 library(lubridate)
 library(Quandl)
+library(forcats)
+library(knitr)
 ```
 
 
@@ -80,7 +82,37 @@ to rate how well we performed.
 * Be sure to incorporate all the insight your garnered in your EDA in HW-2.
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
-set.seed(76)
+
+has_kids <- c("has a kid", "has kids")
+has_kids_no_more <- c("has kids, but doesn&rsquo;t want more",
+        "has a kid, but doesn&rsquo;t want more")
+has_kids_wants_more <- c("has a kid, and wants more","has kids, and wants more")
+has_kids_might_want_more <- c("has kids, and might want more", "has a kid, and might want more")
+anti_kids <- c("doesn&rsquo;t have kids, and doesn&rsquo;t want any", "doesn&rsquo;t want kids", "doesn&rsquo;t have kids")
+# "might want kids", "wants kids", "doesn&rsquo;t have kids, but wants them", "doesn&rsquo;t have kids, but might want them", NA
+
+profiles <- profiles %>%
+  select(-contains("essay")) %>% 
+  mutate(kids = ifelse(is.na(offspring), "no_ans",
+                       ifelse(offspring %in% anti_kids, "anti_kids",
+                              ifelse(offspring %in% has_kids, "has_kids",
+                                     ifelse(offspring %in% has_kids_no_more, "has_kids_no_more",
+                                            ifelse(offspring %in% has_kids_might_want_more, "has_kids_might_want_more",
+                                                   ifelse(offspring == "might want kids", "might_want",
+                                                          ifelse(offspring == "wants kids", "wants",
+                                                                 ifelse(offspring == "doesn&rsquo;t have kids, but wants them", "no_kids_but_wants", "no_kids_might_want")))))))),
+         income_cat = ifelse(income == -1, "no_reply", 
+                         ifelse(income < 50000, "low_income",
+                         ifelse((income >=50000) & (income <= 100000), 
+                                "mid_income", "high_income"))),
+         job = ifelse(is.na(job), "no_report", job)) %>% 
+  select(job, is_female, kids, income_cat)
+profiles
+# NOTE TO SELF: CAN ALSO fct_recode(col_title, "new" = "old", ...)
+
+training <- profiles[sample(nrow(profiles), 2997), ]
+  
+test <- profiles[sample(nrow(profiles), 56946), ]
 
 ```
 
@@ -93,6 +125,9 @@ regression model to the `training` data. Assign this model to an R object called
 `predict_sex_model`, then rate how well the model performs on the `training` data.
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+
+predict_sex_model <- glm(is_female ~ job + kids + income_cat, data=training, family="binomial")
+
 
 ```
 
@@ -108,6 +143,24 @@ type="response")` does? The help file is located in `?predict.glm`
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
 
+# temp_test <- test %>% 
+#   select(job, kids, income_cat)
+# temp_test
+
+train_check <- training %>% 
+  mutate(p_hat = predict(predict_sex_model, type = "response"), 
+         probably_f = ifelse(p_hat > 0.5, 1, 0),
+         correct = ifelse(probably_f == is_female, 1, 0)) %>% 
+  summarise(avg_correct_train = round(mean(correct), 3))
+train_check
+
+test_check <- test %>% 
+  mutate(p_hat = predict(predict_sex_model, newdata=test, type="response"),
+         probably_f = ifelse(p_hat > 0.5, 1, 0),
+         correct = ifelse(probably_f == is_female, 1, 0)) %>% 
+  summarise(avg_correct_test = round(mean(correct), 3))
+test_check
+
 ```
 
 
@@ -117,7 +170,7 @@ type="response")` does? The help file is located in `?predict.glm`
 Did the model perform better on the `training` data or the `test` data? Why
 do you think that is?
 
-
+The average number of correct predictions of the training data was 0.657, which is greater than that of the test data, which is 0.644. This could be because the model is created using the training data, and thus, is better at predicting the training data, than the new, test data.
 
 
 
@@ -136,8 +189,32 @@ insight to a foreign currency exchanger.
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
 
+bitcoin <- Quandl("BAVERAGE/USD") %>%
+  tbl_df() %>% 
+  rename(daily_avg = `24h Average`,
+         total_vol = `Total Volume`) %>% 
+  mutate(relative_price_change = daily_avg-lag(daily_avg, 1))
+
+gold <- Quandl("BUNDESBANK/BBK01_WT5511") %>% 
+  tbl_df() %>% 
+  mutate(relative_price_change = Value - lag(Value, 1))
+
+# Graphs all dates
+gold_bitcoin_graph <- ggplot() +
+  geom_line(data=gold, aes(x=Date, y = relative_price_change, col = 'gold')) +
+  geom_line(data=bitcoin, aes(x = Date, y = relative_price_change, col = 'bitcoin')) +
+  labs(y = "Value", title = "Relative Daily Price Change of Gold and Bitcoin Over Time")
+gold_bitcoin_graph
+
+# Graphs starting from 2010
+gold_bitcoin_graph_2010 <- gold_bitcoin_graph +
+  coord_cartesian(xlim=c(dmy("01-07-2010"),dmy("31-10-2016")),
+                  ylim=c(-100, 150))
+gold_bitcoin_graph_2010
+
 ```
 
+Since bitcoin started in 2016, the value of the bitcoin has shown to change to a greater degree on a daily basis than the value of gold, indicating that bitcoin is a more volatile frequency than gold. Thus, as a foreign currency exchanger, I would prefer to use gold, as it a more stable and reliable currency.
 
 
 
@@ -177,6 +254,19 @@ the "graveyard shift" during the academic year? Define
 * the academic year as September through May (inclusive)
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+
+jukebox_clean <- jukebox %>% 
+  mutate(date_time = parse_date_time(date_time, "a b d HMS Y"), 
+         month = month(date_time),
+         hour = hour(date_time)) %>% 
+  filter(!between(month, 6, 8), between(hour, 0, 8)) %>% 
+  group_by(artist) %>% 
+  tally() %>% 
+  rename("num_played" = n) %>% 
+  arrange(desc(num_played)) %>% 
+  head(10) %>% 
+  kable()
+jukebox_clean
 
 ```
 
