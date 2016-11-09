@@ -25,11 +25,11 @@ library(knitr)
 
 Please indicate
 
-* Who you collaborated with:
-* Roughly how much time you spent on this HW so far:
-* The URL of the RPubs published URL [here](https://www.nhl.com/).
+* Who you collaborated with: none
+* Roughly how much time you spent on this HW so far: 6 hours
+* The URL of the RPubs published URL [here](http://rpubs.com/anarciso/HW-3).
 * What gave you the most trouble:
-* Any comments you have:
+* Any comments you have: 
 
 
 
@@ -193,11 +193,11 @@ bitcoin <- Quandl("BAVERAGE/USD") %>%
   tbl_df() %>% 
   rename(daily_avg = `24h Average`,
          total_vol = `Total Volume`) %>% 
-  mutate(relative_price_change = daily_avg-lag(daily_avg, 1))
+  mutate(relative_price_change = 100*(daily_avg-lag(daily_avg, 1))/lag(daily_avg, 1))
 
 gold <- Quandl("BUNDESBANK/BBK01_WT5511") %>% 
   tbl_df() %>% 
-  mutate(relative_price_change = Value - lag(Value, 1))
+  mutate(relative_price_change = 100*(Value-lag(Value, 1))/lag(Value, 1))
 
 # Graphs all dates
 gold_bitcoin_graph <- ggplot() +
